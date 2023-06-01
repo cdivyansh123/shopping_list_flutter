@@ -1,12 +1,14 @@
-import 'package:flutter/cupertino.dart';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shopping_list/models/category.dart';
 import 'package:shopping_list/models/grocery_item.dart';
+import 'package:http/http.dart' as http;
 
 import '../data/categories.dart';
 
 class NewItem extends StatefulWidget {
-  NewItem({super.key});
+  const NewItem({super.key});
 
   @override
   State<NewItem> createState() {
@@ -19,15 +21,41 @@ class _NewItemState extends State<NewItem> {
   var enteredQuantity = 1;
   var selectedCategory = categories[Categories.vegetables]!;
   final formKey = GlobalKey<FormState>();
+  var isSending = false;
 
-  void saveItem() {
+  void saveItem() async {
     if (formKey.currentState!.validate()) {
       formKey.currentState!.save();
+      setState(() {
+        isSending = true;
+      });
+      final url = Uri.https('flutter-prep-ba5dd-default-rtdb.firebaseio.com',
+          'shopping-list.json');
+      final response = await http.post(url,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: json.encode({
+            'name': enteredName,
+            'quantity': enteredQuantity,
+            'category': selectedCategory.title
+          }));
+
+      final Map<String, dynamic> resData = json.decode(response.body);
+      // ignore: use_build_context_synchronously
+      if (!context.mounted) {
+        return;
+      }
       Navigator.of(context).pop(GroceryItem(
-          id: DateTime.now().toString(),
+          id: resData['name'],
           name: enteredName,
           quantity: enteredQuantity,
           category: selectedCategory));
+      // Navigator.of(context).pop(GroceryItem(
+      //     id: DateTime.now().toString(),
+      //     name: enteredName,
+      //     quantity: enteredQuantity,
+      //     category: selectedCategory));
     }
   }
 
@@ -35,17 +63,17 @@ class _NewItemState extends State<NewItem> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Add a new item"),
+        title: const Text("Add a new item"),
       ),
       body: Padding(
-        padding: EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         child: Form(
           key: formKey,
           child: Column(
             children: [
               TextFormField(
                 maxLength: 50,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   label: Text("Name"),
                 ),
                 validator: (value) {
@@ -66,7 +94,7 @@ class _NewItemState extends State<NewItem> {
                 children: [
                   Expanded(
                     child: TextFormField(
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         label: Text("Quantity"),
                       ),
                       keyboardType: TextInputType.number,
@@ -85,7 +113,7 @@ class _NewItemState extends State<NewItem> {
                       },
                     ),
                   ),
-                  SizedBox(
+                  const SizedBox(
                     width: 8,
                   ),
                   Expanded(
@@ -102,7 +130,7 @@ class _NewItemState extends State<NewItem> {
                                       height: 16,
                                       color: category.value.color,
                                     ),
-                                    SizedBox(
+                                    const SizedBox(
                                       width: 6,
                                     ),
                                     Text(category.value.title),
@@ -117,18 +145,28 @@ class _NewItemState extends State<NewItem> {
                   )
                 ],
               ),
-              SizedBox(
+              const SizedBox(
                 height: 12,
               ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                      onPressed: () {
-                        formKey.currentState!.reset();
-                      },
-                      child: Text("Reset")),
-                  ElevatedButton(onPressed: saveItem, child: Text("Add Item")),
+                      onPressed: isSending
+                          ? null
+                          : () {
+                              formKey.currentState!.reset();
+                            },
+                      child: const Text("Reset")),
+                  ElevatedButton(
+                      onPressed: isSending ? null : saveItem,
+                      child: isSending
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(),
+                            )
+                          : const Text("Add Item")),
                 ],
               )
             ],
